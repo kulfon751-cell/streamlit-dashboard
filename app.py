@@ -27,12 +27,16 @@ for f in files:
         except UnicodeDecodeError:
             dfs.append(pd.read_csv(f, encoding="cp1250", sep=None, engine="python", on_bad_lines='skip'))
     else:
-        # xls/xlsx
+        # xls/xlsx - wczytaj wszystkie arkusze i dołącz informację o źródle
         try:
-            dfs.append(pd.read_excel(f, engine="openpyxl"))
+            sheets = pd.read_excel(f, sheet_name=None, engine="openpyxl")
         except Exception:
-            # fallback without specifying engine
-            dfs.append(pd.read_excel(f))
+            sheets = pd.read_excel(f, sheet_name=None)
+        for sheet_name, sheet_df in sheets.items():
+            sheet_df = sheet_df.copy()
+            sheet_df["_source_file"] = f.name
+            sheet_df["_source_sheet"] = sheet_name
+            dfs.append(sheet_df)
 
 df = pd.concat(dfs, ignore_index=True)
 
