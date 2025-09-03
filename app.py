@@ -107,15 +107,17 @@ df = try_compute_columns(df)
 st.sidebar.header("Filtry / mapowanie kolumn")
 
 # pokaż dostępne kolumny i pozwól użytkownikowi zmapować oczekiwane nazwy
-expected_cols = [
+required_cols = [
     "Dział",
     "Nazwa Urządzenia",
     "Dostępność/h",
     "Obciążenie/h",
-    "Brakujące Godziny",
     "Tydzień",
     "Miesiąc",
     "Numer części",
+]
+optional_cols = [
+    "Brakujące Godziny",
 ]
 
 cols = list(df.columns)
@@ -124,7 +126,7 @@ st.sidebar.write(cols)
 
 # tworzymy mapowanie: oczekiwana_nazwa -> wybrana kolumna z pliku
 mapping = {}
-for col in expected_cols:
+for col in required_cols + optional_cols:
     default_index = 0
     # jeśli nazwa oczekiwana występuje dokładnie, ustaw jako domyślną
     options = ["-- brak --"] + cols
@@ -134,13 +136,24 @@ for col in expected_cols:
     mapping[col] = None if sel == "-- brak --" else sel
 
 # sprawdź czy wszystkie wymagane kolumny zostały zmapowane
-missing = [k for k, v in mapping.items() if v is None]
+missing = [k for k in required_cols if mapping.get(k) is None]
 if missing:
-    st.error(f"Brakuje mapowania dla kolumn: {missing}. Wybierz odpowiednie kolumny po lewej.")
+    st.error(f"Brakuje mapowania dla wymaganych kolumn: {missing}. Wybierz odpowiednie kolumny po lewej.")
     st.stop()
 
 # Zmieniamy nazwy kolumn na standardowe używane dalej w aplikacji
 df = df.rename(columns={v: k for k, v in mapping.items()})
+
+# jeśli 'Brakujące Godziny' nie było zmapowane, spróbuj je obliczyć
+if 'Brakujące Godziny' not in df.columns:
+    if 'Dostępność/h' in df.columns and 'Obciążenie/h' in df.columns:
+        try:
+            df['Brakujące Godziny'] = (pd.to_numeric(df['Dostępność/h'], errors='coerce') - pd.to_numeric(df['Obciążenie/h'], errors='coerce')).clip(lower=0)
+        except Exception:
+            df['Brakujące Godziny'] = 0
+    else:
+        # jeśli nie da się obliczyć, utwórz kolumnę zerową, żeby uniknąć błędów dalej
+        df['Brakujące Godziny'] = 0
 
 # teraz filtry - korzystamy ze zmapowanych, standaryzowanych nazw
 dzial = st.sidebar.multiselect("Dział", df["Dział"].unique())
@@ -164,9 +177,9 @@ if df_f.empty:
 
 # ----------------- KPI -----------------
 c1, c2, c3 = st.columns(3)
-c1.metric("Dostępność [h]", f"{df_f['Dostępność/h'].sum():,.0f}")
-c2.metric("Obciążenie [h]", f"{df_f['Obciążenie/h'].sum():,.0f}")
-c3.metric("Brakujące godziny", f"{df_f['Brakujące Godziny'].sum():,.0f}")
+c1.metric("Dostępność [h]", f"{pd.to_numeric(df_f.get('Dostępność/h', 0)).sum():,.0f}")
+c2.metric("Obciążenie [h]", f"{pd.to_numeric(df_f.get('Obciążenie/h', 0)).sum():,.0f}")
+c3.metric("Brakujące godziny", f"{pd.to_numeric(df_f.get('Brakujące Godziny', 0)).sum():,.0f}")
 
 # ----------------- WYKRESY -----------------
 # Obciążenie vs Braki per maszyna
