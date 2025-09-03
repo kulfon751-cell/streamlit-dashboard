@@ -1,0 +1,15 @@
+# Ignoruj środowiska wirtualne
+.venv/
+venv/
+env/
+
+# Pliki tymczasowe Pythona
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# System
+.DS_Store
+Thumbs.db
