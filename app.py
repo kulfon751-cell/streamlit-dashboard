@@ -6,14 +6,35 @@ st.set_page_config(page_title="Obciążenie i dostępność urządzeń", layout=
 st.title("⚙️ Obciążenie i dostępność urządzeń")
 
 # ----------------- DANE -----------------
-# Wgraj CSV z tymi samymi kolumnami, co w BI
-file = st.sidebar.file_uploader("Wgraj dane (CSV)", type="csv")
+# Wgraj jeden lub więcej plików (CSV, XLS, XLSX)
+files = st.sidebar.file_uploader(
+    "Wgraj dane (CSV lub XLS/XLSX)", type=["csv", "xls", "xlsx"], accept_multiple_files=True
+)
 
-if file is None:
-    st.info("Wgraj plik CSV z kolumnami: Dział, Nazwa Urządzenia, Dostępność/h, Obciążenie/h, Brakujące Godziny, Tydzień, Miesiąc, Numer części")
+if not files:
+    st.info(
+        "Wgraj jeden lub więcej plików CSV/XLS/XLSX z kolumnami: Dział, Nazwa Urządzenia, Dostępność/h, Obciążenie/h, Brakujące Godziny, Tydzień, Miesiąc, Numer części"
+    )
     st.stop()
 
-df = pd.read_csv(file)
+# Wczytaj i połącz wszystkie pliki
+dfs = []
+for f in files:
+    name = f.name.lower()
+    if name.endswith(".csv"):
+        try:
+            dfs.append(pd.read_csv(f, encoding="utf-8", sep=None, engine="python", on_bad_lines='skip'))
+        except UnicodeDecodeError:
+            dfs.append(pd.read_csv(f, encoding="cp1250", sep=None, engine="python", on_bad_lines='skip'))
+    else:
+        # xls/xlsx
+        try:
+            dfs.append(pd.read_excel(f, engine="openpyxl"))
+        except Exception:
+            # fallback without specifying engine
+            dfs.append(pd.read_excel(f))
+
+df = pd.concat(dfs, ignore_index=True)
 
 # ----------------- FILTRY -----------------
 st.sidebar.header("Filtry")
